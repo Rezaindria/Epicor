@@ -1,11 +1,12 @@
 # Starter pipeline
-
 # Start with a minimal pipeline that you can customize to build and deploy your code.
 # Add steps that build, run tests, deploy, and more:
 # https://aka.ms/yaml
 
 trigger:
-- main
+      branches:
+        include:
+        - master
 
 pool:
   vmImage: ubuntu-latest
@@ -18,3 +19,37 @@ steps:
     echo Add other tasks to build, test, and deploy your project.
     echo See https://aka.ms/yaml
   displayName: 'Run a multi-line script'
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+      $files=$(git diff-tree --no-commit-id --name-only -r $(Build.SourceVersion))
+                    $temp=$files-split ' '; 
+                    $count=$temp.Length;
+                    echo "Total changed $count files";
+                    For ($i=0; $i -lt $temp.Length; $i++)
+                    {
+                        $name=$temp[$i];
+                        echo "Modified File -  $name file";
+                        $filepath = ($name.Split('/'))[0..($name.Split('/').count-2)] -join '/';
+                        echo "File path - $filepath";          
+                        $destFile = Join-Path $(Build.ArtifactStagingDirectory) $name;
+                        $destinationpath = Split-Path $destFile ;
+                        echo "Destination path - $destinationpath";
+                        if (!(Test-Path -Path $destinationpath)) {
+                            New-Item $destinationpath -ItemType Directory
+                        }
+                        Copy-Item $name -Destination $destFile -Recurse -Force 
+                 
+                    }
+            
+                    Get-ChildItem -Path $(Build.ArtifactStagingDirectory) -Recurse -Force
+- task: sftpupload@1
+  inputs:
+    sourceFolder: '$(Build.ArtifactStagingDirectory)'
+    contents: '**/*.cab'
+    targetFolder: '/upload'
+    host: '20.121.229.236'
+    port: '22'
+    username: 'epicadmin'
+    password: 'epicor11'
